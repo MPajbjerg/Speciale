@@ -1,1 +1,3 @@
-#Dødelighedsmodel
+#Sourcing functions
+source("Functions.R")
+
