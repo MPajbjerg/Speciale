@@ -4,7 +4,7 @@ source("Functions.R")
 #testing with gompertz-makeham from Dahl & Møller 2006.
 
 {
-  startAge <- 10
+  startAge <- 47
   alpha <- 0.000134
   beta <- 0.0000353
   c <- 1.1020
@@ -52,21 +52,39 @@ source("Functions.R")
   
   initial <- gompertzMu(0)
   
-  
+  set.seed(1)
   #Testing how stochastic mortality develops.
-  testStocMu <- eulerMaruyama(0.1,drift,diffusion,initial,1000,0)
+  testStocMu <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
   
   plot(testStocMu[,1]+startAge,testStocMu[,2],type = "l",
        xlab = "age in years", ylab = "intensity", col = "black", lwd = 2)
   grid()
   
-  testStocMu2 <- eulerMaruyama(0.1,drift,diffusion,initial,1000,0)
+  testStocMu2 <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
   
   lines(testStocMu2[,1]+startAge,testStocMu2[,2],type = "l", col = "red",
         lwd = 2)
   
-  testStocMu3 <- eulerMaruyama(0.1,drift,diffusion,initial,1000,0)
+  testStocMu3 <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
   
   lines(testStocMu3[,1]+startAge,testStocMu3[,2],type = "l", col = "blue",
         lwd = 2)
+}
+
+#Defining payment functions and passive
+{
+  b_ad <- function(t,x){
+    if(t<=67){
+      value <- x
+    }
+    else {value <- 0}
+    return(value)
+  }
+  
+  b_a <- function(t,x){
+    if(t<=67){
+      -72000*1.02^(t-startAge)
+    }
+    else {}
+  }
 }
