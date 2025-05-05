@@ -1,6 +1,24 @@
+#Packages
+library(readxl)
+
 #Sourcing functions
 source("Functions.R")
 
+#Importing return and interest rate
+{
+returnInterestRateData <- read_excel("Economic scenario speciale.xlsx")
+
+#Linear interpolation for interest rate  
+interestRate <- approxfun(returnInterestRateData$Time,
+                          returnInterestRateData$Interest_rate,rule = 2)
+
+#Linear interpolation for return on investements
+returnInvestment <- approxfun(returnInterestRateData$Time,
+                              returnInterestRateData$Return,rule = 2)
+
+
+  
+}
 #testing with gompertz-makeham from Dahl & Møller 2006.
 
 {
@@ -73,6 +91,10 @@ source("Functions.R")
 
 #Defining payment functions and passive
 {
+  kappa <- function(t){
+    
+  }
+  
   b_ad <- function(t,x){
     if(t<=67){
       value <- x
@@ -86,5 +108,9 @@ source("Functions.R")
       -72000*1.02^(t-startAge)
     }
     else {}
+  }
+  
+  rho <- function(t,x){
+    b_ad(t,x)-x
   }
 }
