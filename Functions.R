@@ -19,6 +19,12 @@ eulerMaruyama <- function(stepSize,drift,diffusion,initialValue,numberOfSteps,ti
 #Implementing numerical integration by the trapezoidal rule
 #Taken from LIV2 Week_5 file "ODEandInt"
 numIntegrate <- function(lowerlim, upperlim, integrand, stepSize){
-  yval <- integrand(seq(lowerlim,upperlim,stepSize))
-  return(sum(yval[-1]+yval[-(length(yval))])*stepSize/2)
+  yval <- sapply(seq(lowerlim,upperlim,stepSize),integrand)
+  middlevalues <- (yval[-1]+yval[-(length(yval))])*stepSize/2
+  return(sum(middlevalues))
+}
+
+#Defining survival probability. Always calculated with stepsize 1/100 year
+survivalProb <- function(t,s,mu){
+  exp(-numIntegrate(t,s,mu,0.01))
 }

@@ -99,12 +99,20 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   
   lines(testStocMu3[,1]+startAge,testStocMu3[,2],type = "l", col = "blue",
         lwd = 2)
+  
+  #Testing, if we can calculate survival probabilities with interpolated functions
+  
+  testStocMufunc <- approxfun(testStocMu,rule = 2)
+  
+  survivalProb(0,1,testStocMufunc)
 }
 
 #Defining payment functions and passive
 {
-  kappa <- function(t){
-    
+  kappa <- function(t,mu){
+    #creating wrapper function, which can be integrated
+    exponential <- function(u){survivalProb(t,u,mu) + interestRate(u)}
+     max(numIntegrate(t,300,exponential,0.01),1)
   }
   
   b_ad <- function(t,x){
