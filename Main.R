@@ -104,15 +104,17 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   
   testStocMufunc <- approxfun(testStocMu,rule = 2)
   
-  survivalProb(0,1,testStocMufunc)
+  survivalProb(0,2,testStocMufunc,middle = TRUE)
 }
 
-#Defining payment functions and passive
+#Defining payment functions
 {
-  kappa <- function(t,mu){
-    #creating wrapper function, which can be integrated
-    exponential <- function(u){survivalProb(t,u,mu) + interestRate(u)}
-     max(numIntegrate(t,300,exponential,0.01),1)
+  kappa <- function(t,mu,rate){
+    #The adjustet survival probability function outputs the integral of
+    #each increment. thus to get each point, which needs to be integrated
+    #we need to multiply each step. Then we can use the trapezoidal
+    #rule on this 
+    
   }
   
   b_ad <- function(t,x){
