@@ -16,6 +16,10 @@ eulerMaruyama <- function(stepSize,drift,diffusion,initialValue,numberOfSteps,ti
   return(output)
 }
 
+rungeKutta <- function(stepSize,f,initialValue,numberOfSteps,t){
+  
+}
+
 #Implementing numerical integration by the trapezoidal rule
 #Taken from LIV2 Week_5 file "ODEandInt"
 numIntegrate <- function(lowerlim, upperlim, integrand, stepSize,middle){
@@ -45,9 +49,7 @@ kappa <- function(t,mu,rate,forAllt){
   #we need to multiply each step. Then we can use the trapezoidal
   #rule on this 
   
-  middleValues1 <- rateAdjustedSurvivalProb(t,200,mu,rate,TRUE)
-  
-  middleValues2 <- rep(NA,length(seq(t,200,0.01)))
+  middleValues1 <- rateAdjustedSurvivalProb(t,100,mu,rate,TRUE)
   
   middleValues2 <- cumprod(middleValues1)
   

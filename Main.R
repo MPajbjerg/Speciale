@@ -31,8 +31,18 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
        cex = 0.55)
 }
 }
-#testing with gompertz-makeham from Dahl & Møller 2006.
 
+#Test mortality for sanity check of passive calculator
+{
+  testMuData <- returnInterestRateData <- read_excel("Intensitet til test.xlsx")
+  
+  #Interpolating
+  
+  testMuFunc <- approxfun(testMuData$Tid,testMuData$Intensitet, rule = 2)
+}
+
+#testing with gompertz-makeham from Dahl & Møller 2006.
+#Section with simulation of mortality 
 {
   startAge <- 47
   alpha <- 0.000134
@@ -85,9 +95,12 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   
   #Defining contract mu for the longevity guarantee.
   #Just the other mortality where sigma=0
+  #We need a function, which always outputs 0
+  zero <- function(mu,t){
+    0
+  }
   
-  
-  muStar <- eulerMaruyama(0.01,drift,0,initial,10000,0)
+  muStar <- eulerMaruyama(0.01,drift,zero,initial,10000,0)
   
   #Initializing time to make a matrix of simulations
   time <- seq(0,100,0.01)
@@ -95,7 +108,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   #Making simulations using every core in processor.
   #Only works for Windows
   {
-    set.seed(1)
+    set.seed(47)
     cat("Setting up multicore use", format(Sys.time(),"%H:%M:%S"),"\n")
     
     plan(multisession)
@@ -114,6 +127,9 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     future::plan(sequential)
     
     cat("Multicore ended", format(Sys.time(),"%H:%M:%S"),"\n")
+    
+    #clearing meamory of unused stuff
+    gc()
   }
   
   #Making a matrix consisting of all the differences to 
@@ -124,46 +140,90 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   #contractual mortality. #It took too much memory to store all
   #"mellemregninger". THus the not so nice code below.
   
-  highMuIndex <- which.max(colSums(ifelse(differenceMatrix >0,differenceMatrix,0)))
+  highMuIndex <- which.max(colSums(ifelse(logDifferenceMatrix >0,logDifferenceMatrix,0)))
   
   #Defining the mortality with the highest log difference.
   
   highMu <- simulatedIntensity[,highMuIndex]
   
-  #Testing how stochastic mortality develops.
-  testStocMu <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
+  #Also finding the mortality with the highest negative log difference
   
-  plot(testStocMu[,1]+startAge,log(testStocMu[,2]),type = "l",
-       xlab = "age in years", ylab = "intensity", col = "black", lwd = 2)
-  grid()
+  lowMuIndex <- which.min(colSums(ifelse(logDifferenceMatrix <0,logDifferenceMatrix,0)))
   
-  testStocMu2 <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
+  lowMu <- simulatedIntensity[,lowMuIndex]
   
-  lines(testStocMu2[,1]+startAge,log(testStocMu2[,2]),type = "l", col = "red",
-        lwd = 2)
+  #Plotting the highest and the lowest mortality rate together with the base
+  {
+    plot(time + startAge,log(muStar[,2]),type = "l",
+         xlab = "Age in years", ylab = expression(log(mu)), col = "black",lwd=2)
+    grid()
+    
+    lines(time+startAge,log(highMu),type = "l", col = "red", lwd = 2, lty = 2)
+    
+    lines(time + startAge, log(lowMu),type = "l", col = "blue", lwd = 2, lty = 3)
+    
+    legend("bottomright",
+           legend = c(expression(paste(mu,"*")), expression(mu[H]), expression(mu[L])),
+           col = c("black", "red", "blue"),
+           lty = c(1, 2, 3),
+           lwd = 2,
+           bty = "n")
+    
+  }
   
-  testStocMu3 <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
+  #Plotting without taking logarithms
+  {
+    plot(time + startAge,muStar[,2],type = "l",
+         xlab = "Age in years", ylab = "mu", col = "black",lwd=2)
+    grid()
+    
+    lines(time+startAge,highMu,type = "l", col = "red", lwd = 2, lty = 2)
+    
+    lines(time + startAge, lowMu,type = "l", col = "blue", lwd = 2, lty = 3)
+  }
   
-  lines(testStocMu3[,1]+startAge,log(testStocMu3[,2]),type = "l", col = "blue",
-        lwd = 2)
-  
-  
-  
-  #Plotting contract mu also
-  
-  lines(muStar[,1]+startAge,log(muStar[,2]),type = "l", col = "magenta",
-        lwd = 2)
-  
-  #Testing, if we can calculate survival probabilities with interpolated functions
-  
-  testStocMufunc <- approxfun(testStocMu,rule = 2)
-  
-  survivalProb(0,2,testStocMufunc,middle = TRUE)
+  #Making mortality functions by linear interpolation
+  muStarfunc <- approxfun(time, muStar[,2], rule = 2)
+  muLowfunc <- approxfun(time,lowMu, rule = 2)
+  muHighfunc <- approxfun(time, highMu, rule = 2)
 }
 
+#Calculating survival times and passive
+{
+  #Calculating passive one time for good, since the passive relies on the
+  #contractual mortality, which is the same for all simulations. Plotting
+  #all the expected remaining lifetimes.
+  #creating an interest rate 0 function, since kappa needs function input.
+  
+  zeror <- function(t){
+    0
+  }
+  
+  #calculating for test intensity for sanity check
+  
+  lifetimeMuTest <- kappa(0,testMuFunc,zeror,TRUE)
+  #Looks about right for mortalities from 2023.
+  
+  #calculating expected remaining lifetime
+  
+  lifetimeMuStar <- kappa(0,muStarfunc,zeror,TRUE)
+  
+  lifetimeMuLow <- kappa(0,muLowfunc,zeror,TRUE)
+  
+  lifetimeMuHigh <- kappa(0,muHighfunc,zeror,TRUE)
+  
+  #Calculating passive, as this is the same in all scenario.
+  
+  passive <- kappa(0,muStarfunc,interestRate,TRUE)
+  
+  #Making the passive into a function, since som time steps are missing,
+  #due to double trapez integration.
+  
+  passiveFunc <- approxfun(seq(0.01,99.99,0.01),passive,rule = 2)
+  
+}
 #Defining payment functions
 {
-  
   b_ad <- function(t,x){
     if(t<=67){
       value <- x
