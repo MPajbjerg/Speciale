@@ -1,6 +1,6 @@
 #Packages
 library(readxl)
-
+library(future.apply)
 #Sourcing functions
 source("Functions.R")
 
@@ -80,24 +80,78 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     sigmaMu(t)*sqrt(mu)
   }
   
+  
   initial <- gompertzMu(0)
   
-  set.seed(1)
+  #Defining contract mu for the longevity guarantee.
+  #Just the other mortality where sigma=0
+  
+  
+  muStar <- eulerMaruyama(0.01,drift,0,initial,10000,0)
+  
+  #Initializing time to make a matrix of simulations
+  time <- seq(0,100,0.01)
+  
+  #Making simulations using every core in processor.
+  #Only works for Windows
+  {
+    set.seed(1)
+    cat("Setting up multicore use", format(Sys.time(),"%H:%M:%S"),"\n")
+    
+    plan(multisession)
+    
+    cat("Multicore ready", format(Sys.time(),"%H:%M:%S"),"\n")
+    
+    cat("Starting simulation at", format(Sys.time(),"%H:%M:%S"),"\n")
+    
+    simulatedIntensity <- future_replicate(10000,{eulerMaruyama(0.01,drift,diffusion,initial,10000,0)[,2]},
+                                          simplify = "matrix")
+    
+    cat("Simulation ended at", format(Sys.time(),"%H:%M:%S"),"\n")
+    
+    cat("Ending multicore", format(Sys.time(),"%H:%M:%S"),"\n")
+    
+    future::plan(sequential)
+    
+    cat("Multicore ended", format(Sys.time(),"%H:%M:%S"),"\n")
+  }
+  
+  #Making a matrix consisting of all the differences to 
+  #our contractual intensity
+  logDifferenceMatrix <- log(simulatedIntensity) -log(muStar[,2])
+  
+  #Only keeping points, where mortality rate is larger than
+  #contractual mortality. #It took too much memory to store all
+  #"mellemregninger". THus the not so nice code below.
+  
+  highMuIndex <- which.max(colSums(ifelse(differenceMatrix >0,differenceMatrix,0)))
+  
+  #Defining the mortality with the highest log difference.
+  
+  highMu <- simulatedIntensity[,highMuIndex]
+  
   #Testing how stochastic mortality develops.
   testStocMu <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
   
-  plot(testStocMu[,1]+startAge,testStocMu[,2],type = "l",
+  plot(testStocMu[,1]+startAge,log(testStocMu[,2]),type = "l",
        xlab = "age in years", ylab = "intensity", col = "black", lwd = 2)
   grid()
   
   testStocMu2 <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
   
-  lines(testStocMu2[,1]+startAge,testStocMu2[,2],type = "l", col = "red",
+  lines(testStocMu2[,1]+startAge,log(testStocMu2[,2]),type = "l", col = "red",
         lwd = 2)
   
   testStocMu3 <- eulerMaruyama(0.01,drift,diffusion,initial,10000,0)
   
-  lines(testStocMu3[,1]+startAge,testStocMu3[,2],type = "l", col = "blue",
+  lines(testStocMu3[,1]+startAge,log(testStocMu3[,2]),type = "l", col = "blue",
+        lwd = 2)
+  
+  
+  
+  #Plotting contract mu also
+  
+  lines(muStar[,1]+startAge,log(muStar[,2]),type = "l", col = "magenta",
         lwd = 2)
   
   #Testing, if we can calculate survival probabilities with interpolated functions
