@@ -109,13 +109,6 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
 
 #Defining payment functions
 {
-  kappa <- function(t,mu,rate){
-    #The adjustet survival probability function outputs the integral of
-    #each increment. thus to get each point, which needs to be integrated
-    #we need to multiply each step. Then we can use the trapezoidal
-    #rule on this 
-    
-  }
   
   b_ad <- function(t,x){
     if(t<=67){

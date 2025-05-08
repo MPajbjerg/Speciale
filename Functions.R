@@ -37,3 +37,25 @@ rateAdjustedSurvivalProb <- function(t,s,mu,rate,middle){
   }
   exp(-numIntegrate(t,s,r_mu,0.01,middle))
 }
+
+
+kappa <- function(t,mu,rate,forAllt){
+  #The adjustet survival probability function outputs the integral of
+  #each increment. thus to get each point, which needs to be integrated
+  #we need to multiply each step. Then we can use the trapezoidal
+  #rule on this 
+  
+  middleValues1 <- rateAdjustedSurvivalProb(t,200,mu,rate,TRUE)
+  
+  middleValues2 <- rep(NA,length(seq(t,200,0.01)))
+  
+  middleValues2 <- cumprod(middleValues1)
+  
+  passive <- (middleValues2[-1]+middleValues2[-(length(middleValues2))])*0.01/2
+  
+  passiveForAllt <- sum(passive) - c(0,cumsum(passive[-length(passive)]))
+  
+  if (forAllt==FALSE){
+    return(sum(passive))}
+  else return(passiveForAllt)
+}
