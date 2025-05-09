@@ -64,8 +64,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
 
   delta <- deltaTilde
   gamma <- function(t){
-    g <- deltaTilde*exp(-gammaTilde*t)
-    return(g)
+   deltaTilde*exp(-gammaTilde*t)
   }
   
   sigma <- sigmaTilde
@@ -219,27 +218,134 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   #Making the passive into a function, since som time steps are missing,
   #due to double trapez integration.
   
-  passiveFunc <- approxfun(seq(0.01,99.99,0.01),passive,rule = 2)
+  passiveFunc <- approxfun(seq(0.01,100,0.01),passive,rule = 2)
   
 }
-#Defining payment functions
+#Defining payment functions and sum at risk. 
+#We run into 'dividing by zero' issues, when the passive becomes very small.
+#Thus we will close the account, when the account is too small
 {
   b_ad <- function(t,x){
-    if(t<=67){
-      value <- x
+    ifelse(x>= 10^(-25) & t<=67-startAge ,
+      x,
+      0)
     }
-    else {value <- 0}
+  
+  b_a <- function(t, x) {
+    value <- ifelse(x >= 10^(-25),
+                    ifelse(t <= 67 - startAge, -72000 * 1.02^t, x / passiveFunc(t)),
+                    0)
     return(value)
   }
   
-  b_a <- function(t,x){
-    if(t<=67){
-      -72000*1.02^(t-startAge)
-    }
-    else {}
-  }
   
   rho <- function(t,x){
+    ifelse (x>=10^(-25),
     b_ad(t,x)-x
+    ,
+    0)
+}
+}
+#Defining the customer account and calculating and plotting.Note that this
+#is the same in all scenario.
+{
+  #We run into problems, when numerically dividing by zero.
+  #We thus define the CA as practically zero, when this happens
+  dynamicsX_a <- function(t,x){
+    ifelse (x>= 10^(-25),
+     returnInvestment(t)*x-b_a(t,x)-rho(t,x)*muStarfunc(t)
+    ,
+    0)
+  }
+  
+  X_a_initial <- 1000000
+  
+  X_a <- cbind(time,rungeKutta(0.01,dynamicsX_a,X_a_initial,10000,0))
+  
+  plot(time + startAge,X_a[,2],type = "l",
+       xlab = "Age in years", ylab = expression(X[a]), col = "black",lwd=2)
+  
+  X_a_Func <- approxfun(X_a,rule = 2)
+}
+
+#We now calculate the portfolio-wide mean of a portfolio
+#consisting of male individuals at age 47.
+#We make this in a setup, where a true mortality is specified each time
+#Then we can replicate this setup, when calculating from every realization of
+
+{
+  #Initializing matrix for portfolio-wide means.
+  portMeans <- matrix(NA, nrow= length(time), ncol = 4)
+  
+  colnames(portMeans) <- c("Time","MuLow","MuStar","MuHigh")
+  
+  portMeans[,1] <- time
+  
+  #Defining dynamics of portfolio-wide mean, which only works, when
+  #true Mu and true survivalprobability have been defined
+  dynamicsX_E <- function(t,x){
+
+    p_0_t <- trueSurvivalProb(t)
+    X_a_t <- X_a_Func(t)
+    
+    dX_e <- returnInvestment(t)*p_0_t*X_a_t - rho(t,X_a_t)*p_0_t*
+        (muStarfunc(t) - trueMu(t)) - p_0_t*b_a(t,X_a_t) +
+        b_ad(t,X_a_t)*p_0_t*trueMu(t)
+    
+    return(dX_e)
+  }
+  
+  #Filling the portfolio wide mean based on low mortality rate.
+  {
+    #Fill in the true mortality rate in this simulation
+  trueMu <- muLowfunc
+
+  trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+
+#Calculating the portfolio-wide mean at different times.
+  portMeans[,2] <- rungeKutta(0.01,dynamicsX_E,X_a_initial,10000,0)
+
+  }
+  #Setting the true mu equal to the contractual mu
+  {
+    #Fill in the true mortality rate in this simulation
+    trueMu <- muStarfunc
+    
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    
+    #Calculating the portfolio-wide mean at different times.
+    portMeans[,3] <- rungeKutta(0.01,dynamicsX_E,X_a_initial,10000,0)
+    
+  }
+  
+  #Setting the true mu equal to the high mortality rate.
+  {
+    #Fill in the true mortality rate in this simulation
+    trueMu <- muHighfunc
+    
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    
+    #Calculating the portfolio-wide mean at different times.
+    portMeans[,4] <- rungeKutta(0.01,dynamicsX_E,X_a_initial,10000,0)
+    
+  }
+  
+  #Plotting all of the portfolio-wide means together.
+  {
+    plot(time + startAge,portMeans[,3],type = "l",
+         xlab = "Age in years", ylab = expression(X[E]), col = "black",lwd=2)
+    grid()
+    
+    lines(time+startAge,portMeans[,4],type = "l", col = "red", lwd = 2, lty = 2)
+    
+    lines(time + startAge, portMeans[,2],type = "l", col = "blue", lwd = 2, lty = 3)
+    
+    legend("bottomright",
+           legend = c(expression(paste(mu,"*")), expression(mu[H]), expression(mu[L])),
+           col = c("black", "red", "blue"),
+           lty = c(1, 2, 3),
+           lwd = 2,
+           bty = "n")
+    
   }
 }

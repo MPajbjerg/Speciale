@@ -16,8 +16,17 @@ eulerMaruyama <- function(stepSize,drift,diffusion,initialValue,numberOfSteps,ti
   return(output)
 }
 
-rungeKutta <- function(stepSize,f,initialValue,numberOfSteps,t){
+rungeKutta <- function(stepSize,f,initialValue,numberOfSteps,time){
+  y <- numeric(numberOfSteps + 1)
+  y[1] <- initialValue
+  t <- seq(time,numberOfSteps*stepSize,stepSize)
+  for (i in 1:numberOfSteps) {
+    k1 <- f(t[i], y[i])
+    k2 <- f(t[i] + stepSize / 2, y[i] + stepSize / 2 * k1)
+    y[i + 1] <- y[i] + stepSize * k2
+  }
   
+  return(y)
 }
 
 #Implementing numerical integration by the trapezoidal rule
@@ -32,14 +41,17 @@ numIntegrate <- function(lowerlim, upperlim, integrand, stepSize,middle){
 
 #Defining survival probability. Always calculated with stepsize 1/100 year
 survivalProb <- function(t,s,mu,middle){
-  exp(-numIntegrate(t,s,mu,0.01,middle))
+  p_t_s <- exp(-numIntegrate(t,s,mu,0.01,middle))
+  #The probability should be 1 at time of evaluation
+  return(c(1,p_t_s))
 }
 
 rateAdjustedSurvivalProb <- function(t,s,mu,rate,middle){
   r_mu <- function(u){
     mu(u) + rate(u)
   }
-  exp(-numIntegrate(t,s,r_mu,0.01,middle))
+  pr_t_s <- exp(-numIntegrate(t,s,r_mu,0.01,middle))
+  return(c(1,pr_t_s))
 }
 
 
@@ -61,3 +73,8 @@ kappa <- function(t,mu,rate,forAllt){
     return(sum(passive))}
   else return(passiveForAllt)
 }
+
+
+
+
+
