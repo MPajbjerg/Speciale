@@ -23,7 +23,9 @@ rungeKutta <- function(stepSize,f,initialValue,numberOfSteps,time){
   for (i in 1:numberOfSteps) {
     k1 <- f(t[i], y[i])
     k2 <- f(t[i] + stepSize / 2, y[i] + stepSize / 2 * k1)
-    y[i + 1] <- y[i] + stepSize * k2
+    #Stopping the algortihm close to zero.
+    ifelse( y[i]>10^(-10),
+    y[i + 1] <- y[i] + stepSize * k2,y[i+1] <- 0)
   }
   
   return(y)
@@ -46,9 +48,14 @@ survivalProb <- function(t,s,mu,middle){
   return(c(1,p_t_s))
 }
 
+#Note here that I have imported the zero coupon spot rate, which is NOT
+#the forward rate. We work in time intervals of 1/100 pr. year.
+#Thus we will have to make a rate with the same step size
+#While taking into account compounding rates.
+#Thus we have to take the 100th root
 rateAdjustedSurvivalProb <- function(t,s,mu,rate,middle){
   r_mu <- function(u){
-    mu(u) + rate(u)
+    mu(u) + (1+rate(u))^(1/100)-1
   }
   pr_t_s <- exp(-numIntegrate(t,s,r_mu,0.01,middle))
   return(c(1,pr_t_s))

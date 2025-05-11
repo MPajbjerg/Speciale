@@ -46,15 +46,16 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
 {
   startAge <- 47
   alpha <- 0.000134
+  #Beta from Dahl & Møller 0.0000353
   beta <- 0.0000353
   c <- 1.1020
   
   gompertzMu <- function(t){
-    alpha + beta*c^(startAge+t)
+    alpha + beta*c^(startAge+t-10)
   }
   
   gompertzMuDerivative <- function(t){
-    beta*log(c)*c^(startAge+t)
+    beta*log(c)*c^(startAge+t-10)
   }
   
   #Defining parameters
@@ -233,7 +234,8 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   
   b_a <- function(t, x) {
     value <- ifelse(x >= 10^(-25),
-                    ifelse(t <= 67 - startAge, -72000 * 1.02^t, x / passiveFunc(t)),
+                    ifelse(t <= 67 - startAge, -72000 * 1.02^t,
+                           ifelse(passiveFunc(t)>10^(-10),x / passiveFunc(t),0)),
                     0)
     return(value)
   }
@@ -289,7 +291,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     X_a_t <- X_a_Func(t)
     
     dX_e <- returnInvestment(t)*p_0_t*X_a_t - rho(t,X_a_t)*p_0_t*
-        (muStarfunc(t) - trueMu(t)) - p_0_t*b_a(t,X_a_t) +
+        (muStarfunc(t) - trueMu(t)) - p_0_t*b_a(t,X_a_t) -
         b_ad(t,X_a_t)*p_0_t*trueMu(t)
     
     return(dX_e)
