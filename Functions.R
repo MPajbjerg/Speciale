@@ -31,6 +31,21 @@ rungeKutta <- function(stepSize,f,initialValue,numberOfSteps,time){
   return(y)
 }
 
+#Another rungeKutta, which works for negative values as well.
+rungeKuttaProfit <- function(stepSize,f,initialValue,numberOfSteps,time){
+  y <- numeric(numberOfSteps + 1)
+  y[1] <- initialValue
+  t <- seq(time,numberOfSteps*stepSize,stepSize)
+  for (i in 1:numberOfSteps) {
+    k1 <- f(t[i], y[i])
+    k2 <- f(t[i] + stepSize / 2, y[i] + stepSize / 2 * k1)
+    #Stopping the algortihm close to zero.
+            y[i + 1] <- y[i] + stepSize * k2
+  }
+  
+  return(y)
+}
+
 #Implementing numerical integration by the trapezoidal rule
 #Taken from LIV2 Week_5 file "ODEandInt"
 numIntegrate <- function(lowerlim, upperlim, integrand, stepSize,middle){
@@ -48,6 +63,11 @@ survivalProb <- function(t,s,mu,middle){
   return(c(1,p_t_s))
 }
 
+#Making a forward rate function
+forwardRate <- function(t,s,rate){
+  return((rate(s)*s-rate(t)*t)/(s-t))
+}
+
 #Note here that I have imported the zero coupon spot rate, which is NOT
 #the forward rate. We work in time intervals of 1/100 pr. year.
 #Thus we will have to make a rate with the same step size
@@ -55,7 +75,8 @@ survivalProb <- function(t,s,mu,middle){
 #Thus we have to take the 100th root
 rateAdjustedSurvivalProb <- function(t,s,mu,rate,middle){
   r_mu <- function(u){
-    mu(u) + (1+rate(u))^(1/100)-1
+    mu(u) + #forwardRate(t,u,rate)
+    (1+rate(u))^(1/100)-1
   }
   pr_t_s <- exp(-numIntegrate(t,s,r_mu,0.01,middle))
   return(c(1,pr_t_s))

@@ -12,6 +12,7 @@ returnInterestRateData <- read_excel("Economic scenario speciale.xlsx")
 interestRate <- approxfun(returnInterestRateData$Time,
                           returnInterestRateData$Interest_rate,rule = 2)
 
+
 #Linear interpolation for return on investements
 returnInvestment <- approxfun(returnInterestRateData$Time,
                               returnInterestRateData$Return,rule = 2)
@@ -34,7 +35,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
 
 #Test mortality for sanity check of passive calculator
 {
-  testMuData <- returnInterestRateData <- read_excel("Intensitet til test.xlsx")
+  testMuData <- read_excel("Intensitet til test.xlsx")
   
   #Interpolating
   
@@ -350,4 +351,186 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
            bty = "n")
     
   }
+}
+
+#In this section, we calculate the value of the guarantee.
+#We do it by defining the dynamics of the guarantee and then
+#using a runge-kutta scheme to calculate the accumulated value of the guarantee.
+#We will not use the same runge-Kutta solver, as we will not stop, when the
+#value becomes zero
+{
+  #We make a matrix, where w can store the values
+  valueGuarantee <- matrix(NA, nrow= length(time), ncol = 4)
+  
+  valueGuarantee[,1] <- time
+  
+  colnames(valueGuarantee) <- c("Time","MuLow","MuStar","MuHigh")
+
+  #Defining the dynamics of the guarantee, this is the dynamics of the
+  #Profit process, when alpha=beta and Tilde(X)=X. Thus, we call the process P.
+  dynamicsP_E <- function(t,x){
+    p_0_t <- trueSurvivalProb(t)
+    X_a_t <- X_a_Func(t)
+    return(rho(t,X_a_t)*p_0_t*
+             (muStarfunc(t) - trueMu(t)))}
+  
+  # We start off by using tho low mu
+  {
+    trueMu <- muLowfunc
+  
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+  
+    valueGuarantee[,2] <- rungeKuttaProfit(0.01,dynamicsP_E,0,10000,0)
+    
+  }
+  
+  #We do the same for the contractual mortality, where we expect zero profits.
+  
+  {
+    trueMu <- muStarfunc
+    
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    
+    valueGuarantee[,3] <- rungeKuttaProfit(0.01,dynamicsP_E,0,10000,0)
+  }
+  
+  #And for the highMu
+  {
+    trueMu <- muHighfunc
+    
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    
+    valueGuarantee[,4] <- rungeKuttaProfit(0.01,dynamicsP_E,0,10000,0)
+    
+  }
+  
+  #Plotting them together
+  {
+    plot(time + startAge,valueGuarantee[,3],type = "l",
+         xlab = "Age in years", ylab = expression(P[E]), col = "black",lwd=2,
+         ylim = c(-110000,110000))
+    grid()
+    
+    lines(time+startAge,valueGuarantee[,4],type = "l", col = "red", lwd = 2, lty = 2)
+    
+    lines(time + startAge, valueGuarantee[,2],type = "l", col = "blue", lwd = 2, lty = 3)
+    
+    legend("topleft",
+           legend = c(expression(paste(mu,"*")), expression(mu[H]), expression(mu[L])),
+           col = c("black", "red", "blue"),
+           lty = c(1, 2, 3),
+           lwd = 2,
+           bty = "n")
+    
+  }
+  
+}
+
+#Now we make a setup, where we can calculate the reserve.
+{
+  #Before calculating the reserve, we need to calculate our X-modified
+  #transition probabilities. We will reuse the above setup
+  {
+    a <- function(t){
+      ifelse(t>67-startAge,ifelse(passiveFunc(t)>=10^(-10),1/passiveFunc(t),0),0)
+    }
+    
+    b <- function(t){
+      ifelse(t<= 67-startAge,-72000*1.02^t,0)
+    }
+    
+    c_func <- function(t){
+      ifelse(t<=67-startAge,1,0)
+    }
+    
+    d <- function(t){
+      0
+    }
+    
+    #Now we are ready to calculate the modified transition probabilities.
+    {
+      #We define the differential equation
+      dp_aa_X <- function(s,p){
+        return(p*(interestRate(s)-a(s)+(c_func(s)-1)*trueMu(s)) -
+          trueSurvivalProb(s)*(b(s)+d(s)*trueMu(s)))
+      }
+      
+      #We then calculate all the modified prob. using a Runge-Kutta scheme.
+      
+      p_aa_X <- rungeKutta(0.01,dp_aa_X,X_a_initial,10000,0)
+      
+      p_aa_X_Func <- approxfun(time,p_aa_X,rule = 2)
+      
+    }
+    
+    #We can then calculate the reserve - we will do it as a
+    #vector calculation to optimize time use.
+    {
+      V_mu_integrand <- rateAdjustedSurvivalProb(0,100,zeror,interestRate,TRUE)*
+        (trueSurvivalProb(time)*(b(time)+d(time)*trueMu(time))+p_aa_X*(a(time)+c_func(time)*trueMu(time)))
+      
+      #Numerical integration
+      
+      V_mu <- sum((V_mu_integrand[-1]+V_mu_integrand[-(length(V_mu_integrand))])*0.01/2)
+    }
+    
+  }
+  
+  
+  #We will now replicate the setup in a pure unit-link setup to see,
+  #if the reserve simplifies to the value of the customer account.
+  {
+    trueMuPure <- muStarfunc
+    
+    trueSurvivalProbPure <- approxfun(time,cumprod(survivalProb(0,100,trueMuPure,TRUE)),rule = 2)
+    
+    a_pure <- function(t){
+      ifelse(t>67-startAge,ifelse(passiveFunc(t)>=10^(-10),1/passiveFunc(t),0),0)
+    }
+    
+    b_pure <- function(t){
+      ifelse(t<= 67-startAge,-72000*1.02^t,0)
+    }
+    
+    c_pure <- function(t){
+      1
+    }
+    
+    d_pure <- function(t){
+      0
+    }
+    
+    
+    #Now we are ready to calculate the modified transition probabilities.
+    {
+      #We define the differential equation
+      dp_aa_X_pure <- function(s,p){
+        return(p*(interestRate(s)-a(s)+(c_pure(s)-1)*trueMuPure(s)) -
+                 trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*trueMuPure(s)))
+      }
+      
+      #We then calculate all the modified prob. using a Runge-Kutta scheme.
+      
+      p_aa_X_pure <- rungeKutta(0.01,dp_aa_X_pure,X_a_initial,10000,0)
+      
+      p_aa_X_Func_pure <- approxfun(time,p_aa_X_pure,rule = 2)
+      
+    }
+    
+    #We can then calculate the reserve - we will do it as a
+    #vector calculation to optimize time use.
+    {
+      V_pure_integrand <- rateAdjustedSurvivalProb(0,100,zeror,interestRate,TRUE)*
+        (trueSurvivalProbPure(time)*(b_pure(time)+d_pure(time)*trueMuPure(time))+p_aa_X_pure*
+           (a_pure(time)+c_pure(time)*trueMuPure(time)))
+      
+      #Numerical integration
+      
+      V_pure <- sum((V_pure_integrand[-1]+V_pure_integrand[-(length(V_pure_integrand))])*0.01/2)
+    }
+    
+    
+  }
+  
+  
 }
