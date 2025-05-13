@@ -1,6 +1,9 @@
 #Packages
 library(readxl)
+#packages for clustering cores
 library(future.apply)
+library(foreach)
+library(doParallel)
 #Sourcing functions
 source("Functions.R")
 
@@ -531,6 +534,78 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     
     
   }
+  
+  
+}
+
+
+
+#We are now ready to calcualte the profit from the guarantee, the expected lifetimes
+#and the reserves for all of the realizations of the stochastic mortality
+
+{
+  #First off, we make a matrix, where we can store all the values. We let each 
+  #coloumn be a realization of mortality and each row correspond to something,
+  #we want to calculate.
+  
+  dataAllSimulations <- matrix(,nrow = 3, ncol = dim(simulatedIntensity)[2])
+  
+  rownames(dataAllSimulations) <- c("Expected lifetime","Profit guarantee","Reserve")
+  
+  #We need to loop over all the different simulations. Start looping
+  
+  for (i in 1:100){
+       #dim(simulatedIntensity)[2]){
+    
+    #Define sizes, which will be used for all mortality rates
+    
+    trueMu <- approxfun(time,simulatedIntensity[,i],rule = 2)
+    
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    
+    #calculating the first output, which is the expected survival time.
+    {
+    dataAllSimulations[1,i] <- kappa(0,trueMu,zeror,TRUE)[1]
+    }
+    
+    #Then we calculate the price of the guarantee. Note that the dynamics of
+    #X_a and P are allready pre defined. Note that X_a are the same for all
+    #mortality rates. This is the second output. Dynamics P_E is based on
+    #the true mortality rate and survival probability defined earlier.
+    
+    {
+      dataAllSimulations[2,i] <- rungeKuttaProfit(0.01,dynamicsP_E,0,
+                                                  10000,0)[length(rungeKuttaProfit(0.01,dynamicsP_E,0,
+                                                                                   10000,0))]
+    }
+    
+    #For the final output the reserve is calculated.
+    {
+      #Firstly the modified transition probabilities are calculated
+      {
+        p_aa_X <- rungeKutta(0.01,dp_aa_X,X_a_initial,10000,0)
+      
+        p_aa_X_Func <- approxfun(time,p_aa_X,rule = 2)
+      }
+    
+    #We can then calculate the reserve - we will do it as a
+    #vector calculation to optimize time use.
+      {
+        V_mu_integrand <- rateAdjustedSurvivalProb(0,100,zeror,interestRate,TRUE)*
+          (trueSurvivalProb(time)*(b(time)+d(time)*trueMu(time))+p_aa_X*(a(time)+c_func(time)*trueMu(time)))
+      
+        #Numerical integration
+      
+        dataAllSimulations[3,i] <- sum((V_mu_integrand[-1]+V_mu_integrand[-(length(V_mu_integrand))])*0.01/2)
+      }
+    }
+    
+    
+    #End of loop
+  }
+  
+  
+  
   
   
 }
