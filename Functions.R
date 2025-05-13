@@ -25,7 +25,7 @@ rungeKutta <- function(stepSize,f,initialValue,numberOfSteps,time){
     k2 <- f(t[i] + stepSize / 2, y[i] + stepSize / 2 * k1)
     #Stopping the algortihm close to zero.
     ifelse( y[i]>10^(-10),
-    y[i + 1] <- y[i] + stepSize * k2,y[i+1] <- 0)
+            y[i + 1] <- y[i] + stepSize * k2,y[i+1] <- 0)
   }
   
   return(y)
@@ -40,7 +40,7 @@ rungeKuttaProfit <- function(stepSize,f,initialValue,numberOfSteps,time){
     k1 <- f(t[i], y[i])
     k2 <- f(t[i] + stepSize / 2, y[i] + stepSize / 2 * k1)
     #Stopping the algortihm close to zero.
-            y[i + 1] <- y[i] + stepSize * k2
+    y[i + 1] <- y[i] + stepSize * k2
   }
   
   return(y)
@@ -52,7 +52,7 @@ numIntegrate <- function(lowerlim, upperlim, integrand, stepSize,middle){
   yval <- sapply(seq(lowerlim,upperlim,stepSize),integrand)
   middlevalues <- (yval[-1]+yval[-(length(yval))])*stepSize/2
   if (middle==FALSE){
-  return(sum(middlevalues))}
+    return(sum(middlevalues))}
   else return(middlevalues)
 }
 
@@ -63,11 +63,6 @@ survivalProb <- function(t,s,mu,middle){
   return(c(1,p_t_s))
 }
 
-#Making a forward rate function
-forwardRate <- function(t,s,rate){
-  return((rate(s)*s-rate(t)*t)/(s-t))
-}
-
 #Note here that I have imported the zero coupon spot rate, which is NOT
 #the forward rate. We work in time intervals of 1/100 pr. year.
 #Thus we will have to make a rate with the same step size
@@ -75,8 +70,7 @@ forwardRate <- function(t,s,rate){
 #Thus we have to take the 100th root
 rateAdjustedSurvivalProb <- function(t,s,mu,rate,middle){
   r_mu <- function(u){
-    mu(u) + #forwardRate(t,u,rate)
-    (1+rate(u))^(1/100)-1
+    mu(u) + rate(u)
   }
   pr_t_s <- exp(-numIntegrate(t,s,r_mu,0.01,middle))
   return(c(1,pr_t_s))
@@ -101,8 +95,5 @@ kappa <- function(t,mu,rate,forAllt){
     return(sum(passive))}
   else return(passiveForAllt)
 }
-
-
-
 
 

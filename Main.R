@@ -1,6 +1,6 @@
 #Packages
 library(readxl)
-#packages for clustering cores
+#packages for clustering cores and parallel calculations
 library(future.apply)
 library(foreach)
 library(doParallel)
@@ -16,10 +16,26 @@ returnInterestRateData <- read_excel("Economic scenario speciale.xlsx")
 interestRate <- approxfun(returnInterestRateData$Time,
                           returnInterestRateData$Interest_rate,rule = 2)
 
-
+#Fitting a spline to the zero coupon bond price, which allows taking the
+#derivative to find the short rate.
+{
+  zeroCouponPrices <- matrix(,nrow = length(returnInterestRateData$Time),
+                             ncol = 2)
+  zeroCouponPrices[,1] <- returnInterestRateData$Time
+  
+  for (i in 1:length(returnInterestRateData$Time)){
+    zeroCouponPrices[i,2] <- 1/(1+returnInterestRateData$Interest_rate[i])^zeroCouponPrices[i,1]
+  }
+  
+  shortRate <- splinefun(zeroCouponPrices[,1],-log(zeroCouponPrices[,2]),
+                         method = "natural")
+  
+  shortRateFunc <- function(t){
+    shortRate(t,deriv = 1)
+  }
+}
 #Linear interpolation for return on investements
-returnInvestment <- approxfun(returnInterestRateData$Time,
-                              returnInterestRateData$Return,rule = 2)
+returnInvestment <- shortRateFunc
 
 #Plotting the economic scenario
 {
@@ -122,7 +138,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     
     cat("Starting simulation at", format(Sys.time(),"%H:%M:%S"),"\n")
     
-    simulatedIntensity <- future_replicate(10000,{eulerMaruyama(0.01,drift,diffusion,initial,10000,0)[,2]},
+    simulatedIntensity <- future_replicate(2000,{eulerMaruyama(0.01,drift,diffusion,initial,10000,0)[,2]},
                                           simplify = "matrix")
     
     cat("Simulation ended at", format(Sys.time(),"%H:%M:%S"),"\n")
@@ -219,9 +235,9 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   
   #Calculating passive, as this is the same in all scenario.
   
-  passive <- kappa(0,muStarfunc,interestRate,TRUE)
+  passive <- kappa(0,muStarfunc,shortRateFunc,TRUE)
   
-  #Making the passive into a function, since som time steps are missing,
+  #Making the passive into a function, since some time steps are missing,
   #due to double trapez integration.
   
   passiveFunc <- approxfun(seq(0.01,100,0.01),passive,rule = 2)
@@ -455,7 +471,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     {
       #We define the differential equation
       dp_aa_X <- function(s,p){
-        return(p*(interestRate(s)-a(s)+(c_func(s)-1)*trueMu(s)) -
+        return(p*(shortRateFunc(s)-a(s)+(c_func(s)-1)*trueMu(s)) -
           trueSurvivalProb(s)*(b(s)+d(s)*trueMu(s)))
       }
       
@@ -470,7 +486,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     #We can then calculate the reserve - we will do it as a
     #vector calculation to optimize time use.
     {
-      V_mu_integrand <- rateAdjustedSurvivalProb(0,100,zeror,interestRate,TRUE)*
+      V_mu_integrand <- rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE)*
         (trueSurvivalProb(time)*(b(time)+d(time)*trueMu(time))+p_aa_X*(a(time)+c_func(time)*trueMu(time)))
       
       #Numerical integration
@@ -509,7 +525,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     {
       #We define the differential equation
       dp_aa_X_pure <- function(s,p){
-        return(p*(interestRate(s)-a(s)+(c_pure(s)-1)*trueMuPure(s)) -
+        return(p*(shortRateFunc(s)-a(s)+(c_pure(s)-1)*trueMuPure(s)) -
                  trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*trueMuPure(s)))
       }
       
@@ -524,7 +540,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     #We can then calculate the reserve - we will do it as a
     #vector calculation to optimize time use.
     {
-      V_pure_integrand <- rateAdjustedSurvivalProb(0,100,zeror,interestRate,TRUE)*
+      V_pure_integrand <- rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE)*
         (trueSurvivalProbPure(time)*(b_pure(time)+d_pure(time)*trueMuPure(time))+p_aa_X_pure*
            (a_pure(time)+c_pure(time)*trueMuPure(time)))
       
@@ -580,7 +596,7 @@ rm(lifetimeMuHigh,lifetimeMuLow,lifetimeMuTest,lifetimeMuStar,
     p_aa_X <- rungeKutta(0.01, dp_aa_X, X_a_initial, 10000, 0)
     p_aa_X_Func <- approxfun(time, p_aa_X, rule = 2)
     
-    V_mu_integrand <- rateAdjustedSurvivalProb(0, 100, zeror, interestRate, TRUE) *
+    V_mu_integrand <- rateAdjustedSurvivalProb(0, 100, zeror, shortRateFunc, TRUE) *
       (trueSurvivalProb(time) * (b(time) + d(time) * trueMu(time)) +
          p_aa_X * (a(time) + c_func(time) * trueMu(time)))
     
