@@ -4,6 +4,7 @@ library(readxl)
 library(future.apply)
 library(foreach)
 library(doParallel)
+library(doFuture)
 #Sourcing functions
 source("Functions.R")
 
@@ -542,70 +543,117 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
 
 #We are now ready to calcualte the profit from the guarantee, the expected lifetimes
 #and the reserves for all of the realizations of the stochastic mortality
-
+#Removing the log difference matrix, because it is very big and not used
+rm(logDifferenceMatrix)
+rm(valueGuarantee)
+rm(portMeans)
+rm(lifetimeMuHigh,lifetimeMuLow,lifetimeMuTest,lifetimeMuStar,
+   lowMu,highMu,V_mu_integrand,p_aa_X,p_aa_X_pure)
 {
-  #First off, we make a matrix, where we can store all the values. We let each 
-  #coloumn be a realization of mortality and each row correspond to something,
-  #we want to calculate.
+  #Making parallel calculations
   
-  dataAllSimulations <- matrix(,nrow = 3, ncol = dim(simulatedIntensity)[2])
   
-  rownames(dataAllSimulations) <- c("Expected lifetime","Profit guarantee","Reserve")
+  registerDoFuture()
+  plan(multisession) 
   
-  #We need to loop over all the different simulations. Start looping
   
-  for (i in 1:100){
-       #dim(simulatedIntensity)[2]){
+  # Preallocate result matrix
+  dataAllSimulations <- matrix(NA, nrow = 3, ncol = dim(simulatedIntensity)[2])
+  rownames(dataAllSimulations) <- c("Expected lifetime", "Profit guarantee", "Reserve")
+  
+  # Run parallel loop
+  results <- foreach(i = 1:dim(simulatedIntensity)[2], .combine = 'cbind',
+                     .inorder = TRUE) %dopar% {
     
-    #Define sizes, which will be used for all mortality rates
+    sim_i <-  simulatedIntensity[, i]                  
+    trueMu <- approxfun(time, sim_i, rule = 2)
+    trueSurvivalProb <- approxfun(time, cumprod(survivalProb(0, 100, trueMu, TRUE)), rule = 2)
     
-    trueMu <- approxfun(time,simulatedIntensity[,i],rule = 2)
+    # Expected lifetime
+    expected_lifetime <- kappa(0, trueMu, zeror, TRUE)[1]
     
-    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    # Profit guarantee
+    profit_guarantee <- rungeKuttaProfit(0.01, dynamicsP_E, 0, 10000, 0)
+    profit_guarantee <- profit_guarantee[length(profit_guarantee)]
     
-    #calculating the first output, which is the expected survival time.
-    {
-    dataAllSimulations[1,i] <- kappa(0,trueMu,zeror,TRUE)[1]
-    }
+    # Reserve
+    p_aa_X <- rungeKutta(0.01, dp_aa_X, X_a_initial, 10000, 0)
+    p_aa_X_Func <- approxfun(time, p_aa_X, rule = 2)
     
-    #Then we calculate the price of the guarantee. Note that the dynamics of
-    #X_a and P are allready pre defined. Note that X_a are the same for all
-    #mortality rates. This is the second output. Dynamics P_E is based on
-    #the true mortality rate and survival probability defined earlier.
+    V_mu_integrand <- rateAdjustedSurvivalProb(0, 100, zeror, interestRate, TRUE) *
+      (trueSurvivalProb(time) * (b(time) + d(time) * trueMu(time)) +
+         p_aa_X * (a(time) + c_func(time) * trueMu(time)))
     
-    {
-      dataAllSimulations[2,i] <- rungeKuttaProfit(0.01,dynamicsP_E,0,
-                                                  10000,0)[length(rungeKuttaProfit(0.01,dynamicsP_E,0,
-                                                                                   10000,0))]
-    }
+    reserve <- sum((V_mu_integrand[-1] + V_mu_integrand[-length(V_mu_integrand)]) * 0.01 / 2)
     
-    #For the final output the reserve is calculated.
-    {
-      #Firstly the modified transition probabilities are calculated
-      {
-        p_aa_X <- rungeKutta(0.01,dp_aa_X,X_a_initial,10000,0)
-      
-        p_aa_X_Func <- approxfun(time,p_aa_X,rule = 2)
-      }
-    
-    #We can then calculate the reserve - we will do it as a
-    #vector calculation to optimize time use.
-      {
-        V_mu_integrand <- rateAdjustedSurvivalProb(0,100,zeror,interestRate,TRUE)*
-          (trueSurvivalProb(time)*(b(time)+d(time)*trueMu(time))+p_aa_X*(a(time)+c_func(time)*trueMu(time)))
-      
-        #Numerical integration
-      
-        dataAllSimulations[3,i] <- sum((V_mu_integrand[-1]+V_mu_integrand[-(length(V_mu_integrand))])*0.01/2)
-      }
-    }
-    
-    
-    #End of loop
+    c(expected_lifetime, profit_guarantee, reserve)
   }
   
+  # Assign results to matrix
+  dataAllSimulations[, 1:dim(simulatedIntensity)[2]] <- results
   
-  
-  
+  # Stop multisession
+  plan(sequential)
+  gc()
   
 }
+
+#Making relevant plots
+
+{
+  #Plots regarding the expected survival times
+  {
+    hist(dataAllSimulations[1,], freq = FALSE, xlab= "Expected remaining lifetime",
+         col = "lightblue")
+    
+    #order statistics for quantile/distribution
+    orderStat <- sort(dataAllSimulations[1,])
+    
+    plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
+                                    1,1/(dim(dataAllSimulations)[2])),
+         xlab = "Expected remaning lifetime", ylab = "Quantile")
+    
+    #For finding specific quantile
+    quantile(orderStat, probs = 0.05)
+    
+  }
+  
+  #Plots regarding the portfolio-wide mean of the profit process.
+  {
+    hist(dataAllSimulations[2,], freq = FALSE, xlab= "Expected remaining lifetime",
+         col = "lightblue")
+    
+    #order statistics for quantile/distribution
+    orderStat <- sort(dataAllSimulations[2,])
+    
+    plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
+                       1,1/(dim(dataAllSimulations)[2])),
+         xlab = "P_E", ylab = "Quantile")
+    
+    #For finding specific quantile
+    quantile(orderStat, probs = 0.05)
+    
+    
+  }
+  
+  #Plots regarding the reserve
+  
+  {
+    hist(dataAllSimulations[3,], freq = FALSE, xlab= "Expected remaining lifetime",
+         col = "lightblue")
+    
+    #order statistics for quantile/distribution
+    orderStat <- sort(dataAllSimulations[3,])
+    
+    plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
+                       1,1/(dim(dataAllSimulations)[2])),
+         xlab = "Reserve", ylab = "Quantile")
+    
+    #For finding specific quantile
+    quantile(orderStat, probs = 0.05)
+    
+    
+  }
+  
+}
+
