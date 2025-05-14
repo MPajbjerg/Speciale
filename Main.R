@@ -485,7 +485,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     {
       #We define the differential equation
       dp_aa_X <- function(s,p){
-        return(p*(shortRateFunc(s)-a(s)-(c_func(s)-1)*muStarfunc(s)) -
+        return(p*(shortRateFunc(s)-a(s)-trueMu(s)-(1-c_func(s))*muStarfunc(s)) -
           trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
       }
       
@@ -539,7 +539,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     {
       #We define the differential equation
       dp_aa_X_pure <- function(s,p){
-        return(p*(shortRateFunc(s)-a(s)-(c_pure(s)-1)*muStarfunc(s)) -
+        return(p*(shortRateFunc(s)-a_pure(s)-trueMuPure(s)-(1-c_pure(s))*muStarfunc(s)) -
                  trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*muStarfunc(s)))
       }
       
