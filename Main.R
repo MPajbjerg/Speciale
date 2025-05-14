@@ -234,13 +234,26 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   lifetimeMuHigh <- kappa(0,muHighfunc,zeror,TRUE)
   
   #Calculating passive, as this is the same in all scenario.
+  #The passive is calculated for future times as well
   
-  passive <- kappa(0,muStarfunc,shortRateFunc,TRUE)
+  #Making a wrapper for the Sapply
   
+  wrapperPassive <- function(t){
+    kappa(t,muStarfunc,shortRateFunc,FALSE)
+  }
+  
+  #Takes some time, so uses more cores
+  {
+  plan(multisession)
+  passive <- future_sapply(seq(0,100,0.01),wrapperPassive)
+  plan(sequential)
+  gc()
+  }
   #Making the passive into a function, since some time steps are missing,
   #due to double trapez integration.
   
-  passiveFunc <- approxfun(seq(0.01,100,0.01),passive,rule = 2)
+  
+  passiveFunc <- approxfun(seq(0,100,0.01),passive,rule = 2)
   
 }
 #Defining payment functions and sum at risk. 
@@ -253,6 +266,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
       0)
     }
   
+  #also added if the payment is larger than the account payout the account.
   b_a <- function(t, x) {
     value <- ifelse(x >= 10^(-25),
                     ifelse(t <= 67 - startAge, -72000 * 1.02^t,
@@ -428,7 +442,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   {
     plot(time + startAge,valueGuarantee[,3],type = "l",
          xlab = "Age in years", ylab = expression(P[E]), col = "black",lwd=2,
-         ylim = c(-110000,110000))
+         ylim = c(-120000,110000))
     grid()
     
     lines(time+startAge,valueGuarantee[,4],type = "l", col = "red", lwd = 2, lty = 2)
@@ -471,8 +485,8 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     {
       #We define the differential equation
       dp_aa_X <- function(s,p){
-        return(p*(shortRateFunc(s)-a(s)+(c_func(s)-1)*trueMu(s)) -
-          trueSurvivalProb(s)*(b(s)+d(s)*trueMu(s)))
+        return(p*(shortRateFunc(s)-a(s)-(c_func(s)-1)*muStarfunc(s)) -
+          trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
       }
       
       #We then calculate all the modified prob. using a Runge-Kutta scheme.
@@ -486,7 +500,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     #We can then calculate the reserve - we will do it as a
     #vector calculation to optimize time use.
     {
-      V_mu_integrand <- rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE)*
+      V_mu_integrand <- cumprod(rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE))*
         (trueSurvivalProb(time)*(b(time)+d(time)*trueMu(time))+p_aa_X*(a(time)+c_func(time)*trueMu(time)))
       
       #Numerical integration
@@ -525,8 +539,8 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     {
       #We define the differential equation
       dp_aa_X_pure <- function(s,p){
-        return(p*(shortRateFunc(s)-a(s)+(c_pure(s)-1)*trueMuPure(s)) -
-                 trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*trueMuPure(s)))
+        return(p*(shortRateFunc(s)-a(s)-(c_pure(s)-1)*muStarfunc(s)) -
+                 trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*muStarfunc(s)))
       }
       
       #We then calculate all the modified prob. using a Runge-Kutta scheme.
@@ -540,7 +554,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     #We can then calculate the reserve - we will do it as a
     #vector calculation to optimize time use.
     {
-      V_pure_integrand <- rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE)*
+      V_pure_integrand <- cumprod(rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE))*
         (trueSurvivalProbPure(time)*(b_pure(time)+d_pure(time)*trueMuPure(time))+p_aa_X_pure*
            (a_pure(time)+c_pure(time)*trueMuPure(time)))
       
@@ -561,10 +575,6 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
 #and the reserves for all of the realizations of the stochastic mortality
 #Removing the log difference matrix, because it is very big and not used
 rm(logDifferenceMatrix)
-rm(valueGuarantee)
-rm(portMeans)
-rm(lifetimeMuHigh,lifetimeMuLow,lifetimeMuTest,lifetimeMuStar,
-   lowMu,highMu,V_mu_integrand,p_aa_X,p_aa_X_pure)
 {
   #Making parallel calculations
   
@@ -588,15 +598,28 @@ rm(lifetimeMuHigh,lifetimeMuLow,lifetimeMuTest,lifetimeMuStar,
     # Expected lifetime
     expected_lifetime <- kappa(0, trueMu, zeror, TRUE)[1]
     
-    # Profit guarantee
+    # Profit guarantee # Defining the function for dynamics again.
+    #This has to be done when calculating parallel.
+    dynamicsP_E <- function(t,x){
+      p_0_t <- trueSurvivalProb(t)
+      X_a_t <- X_a_Func(t)
+      return(rho(t,X_a_t)*p_0_t*
+               (muStarfunc(t) - trueMu(t)))}
+    
     profit_guarantee <- rungeKuttaProfit(0.01, dynamicsP_E, 0, 10000, 0)
     profit_guarantee <- profit_guarantee[length(profit_guarantee)]
     
     # Reserve
+    #The function has to be defined again, when calculating in parallel.
+    dp_aa_X_pure <- function(s,p){
+      return(p*(shortRateFunc(s)-a(s)+(c_pure(s)-1)*trueMuPure(s)) -
+               trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*trueMuPure(s)))
+    }
+    
     p_aa_X <- rungeKutta(0.01, dp_aa_X, X_a_initial, 10000, 0)
     p_aa_X_Func <- approxfun(time, p_aa_X, rule = 2)
     
-    V_mu_integrand <- rateAdjustedSurvivalProb(0, 100, zeror, shortRateFunc, TRUE) *
+    V_mu_integrand <- cumprod(rateAdjustedSurvivalProb(0, 100, zeror, shortRateFunc, TRUE)) *
       (trueSurvivalProb(time) * (b(time) + d(time) * trueMu(time)) +
          p_aa_X * (a(time) + c_func(time) * trueMu(time)))
     

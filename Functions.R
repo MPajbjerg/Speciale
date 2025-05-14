@@ -63,11 +63,7 @@ survivalProb <- function(t,s,mu,middle){
   return(c(1,p_t_s))
 }
 
-#Note here that I have imported the zero coupon spot rate, which is NOT
-#the forward rate. We work in time intervals of 1/100 pr. year.
-#Thus we will have to make a rate with the same step size
-#While taking into account compounding rates.
-#Thus we have to take the 100th root
+#The rate adjusted survival probabilities
 rateAdjustedSurvivalProb <- function(t,s,mu,rate,middle){
   r_mu <- function(u){
     mu(u) + rate(u)
