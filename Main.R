@@ -301,6 +301,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   
   plot(time + startAge,X_a[,2],type = "l",
        xlab = "Age in years", ylab = expression(X[a]), col = "black",lwd=2)
+  grid()
   
   X_a_Func <- approxfun(X_a,rule = 2)
 }
@@ -377,7 +378,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
     
     lines(time + startAge, portMeans[,2],type = "l", col = "blue", lwd = 2, lty = 3)
     
-    legend("bottomright",
+    legend("topright",
            legend = c(expression(paste(mu,"*")), expression(mu[H]), expression(mu[L])),
            col = c("black", "red", "blue"),
            lty = c(1, 2, 3),
@@ -642,11 +643,12 @@ rm(logDifferenceMatrix)
 {
   #Plots regarding the expected survival times
   {
-    hist(dataAllSimulations[1,], freq = FALSE, xlab= "Expected remaining lifetime",
-         col = "lightblue")
+    
+    hist(dataAllSimulations[1,]+47, freq = FALSE, xlab= "Expected lifetime",
+         col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
-    orderStat <- sort(dataAllSimulations[1,])
+    orderStat <- sort(dataAllSimulations[1,]+47)
     
     plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
                                     1,1/(dim(dataAllSimulations)[2])),
@@ -655,12 +657,14 @@ rm(logDifferenceMatrix)
     #For finding specific quantile
     quantile(orderStat, probs = 0.05)
     
+    #Info on data
+    summary(dataAllSimulations[1,]+47)
   }
   
   #Plots regarding the portfolio-wide mean of the profit process.
   {
-    hist(dataAllSimulations[2,], freq = FALSE, xlab= "Expected remaining lifetime",
-         col = "lightblue")
+    hist(dataAllSimulations[2,], freq = FALSE, xlab= "P_E",
+         col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
     orderStat <- sort(dataAllSimulations[2,])
@@ -678,8 +682,8 @@ rm(logDifferenceMatrix)
   #Plots regarding the reserve
   
   {
-    hist(dataAllSimulations[3,], freq = FALSE, xlab= "Expected remaining lifetime",
-         col = "lightblue")
+    hist(dataAllSimulations[3,], freq = FALSE, xlab= "Reserve",
+         col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
     orderStat <- sort(dataAllSimulations[3,])
