@@ -403,10 +403,13 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
 
   #Defining the dynamics of the guarantee, this is the dynamics of the
   #Profit process, when alpha=beta and Tilde(X)=X. Thus, we call the process P.
+  #Furthermore we discount with a function, which we define
+  discountFunc <- approxfun(cumprod(rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE)),rule =2)
+  
   dynamicsP_E <- function(t,x){
     p_0_t <- trueSurvivalProb(t)
     X_a_t <- X_a_Func(t)
-    return(rho(t,X_a_t)*p_0_t*
+    return(discountFunc(t)*rho(t,X_a_t)*p_0_t*
              (muStarfunc(t) - trueMu(t)))}
   
   # We start off by using tho low mu
@@ -442,7 +445,7 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
   #Plotting them together
   {
     plot(time + startAge,valueGuarantee[,3],type = "l",
-         xlab = "Age in years", ylab = expression(P[E]), col = "black",lwd=2,
+         xlab = "Age in years", ylab = expression(paste(P[E],"*")), col = "black",lwd=2,
          ylim = c(-120000,110000))
     grid()
     
@@ -482,11 +485,19 @@ legend("topright",legend = c("Interest rate", "Return on assets"),
       0
     }
     
+    #Calculating it, when the true mortality is the low mortality.
+    {
+      trueMu <- muLowfunc
+      
+      trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    }
+    
+    
     #Now we are ready to calculate the modified transition probabilities.
     {
       #We define the differential equation
       dp_aa_X <- function(s,p){
-        return(p*(shortRateFunc(s)-a(s)-trueMu(s)-(1-c_func(s))*muStarfunc(s)) -
+        return(p*(shortRateFunc(s)-a(s)-trueMu(s)+(1-c_func(s))*muStarfunc(s)) -
           trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
       }
       
@@ -604,7 +615,7 @@ rm(logDifferenceMatrix)
     dynamicsP_E <- function(t,x){
       p_0_t <- trueSurvivalProb(t)
       X_a_t <- X_a_Func(t)
-      return(rho(t,X_a_t)*p_0_t*
+      return(discountFunc(t)*rho(t,X_a_t)*p_0_t*
                (muStarfunc(t) - trueMu(t)))}
     
     profit_guarantee <- rungeKuttaProfit(0.01, dynamicsP_E, 0, 10000, 0)
@@ -612,9 +623,10 @@ rm(logDifferenceMatrix)
     
     # Reserve
     #The function has to be defined again, when calculating in parallel.
-    dp_aa_X_pure <- function(s,p){
-      return(p*(shortRateFunc(s)-a(s)+(c_pure(s)-1)*trueMuPure(s)) -
-               trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*trueMuPure(s)))
+    #We define the differential equation
+    dp_aa_X <- function(s,p){
+      return(p*(shortRateFunc(s)-a(s)-trueMu(s)+(1-c_func(s))*muStarfunc(s)) -
+               trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
     }
     
     p_aa_X <- rungeKutta(0.01, dp_aa_X, X_a_initial, 10000, 0)
@@ -663,7 +675,7 @@ rm(logDifferenceMatrix)
   
   #Plots regarding the portfolio-wide mean of the profit process.
   {
-    hist(dataAllSimulations[2,], freq = FALSE, xlab= "P_E",
+    hist(dataAllSimulations[2,], freq = FALSE, xlab= expression(paste(P[E],"*")),
          col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
@@ -671,12 +683,13 @@ rm(logDifferenceMatrix)
     
     plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
                        1,1/(dim(dataAllSimulations)[2])),
-         xlab = "P_E", ylab = "Quantile")
+         xlab = expression(paste(P[E],"*")), ylab = "Quantile")
     
     #For finding specific quantile
     quantile(orderStat, probs = 0.05)
     
-    
+    #General statistics
+    summary(dataAllSimulations[2,])
   }
   
   #Plots regarding the reserve
@@ -695,6 +708,7 @@ rm(logDifferenceMatrix)
     #For finding specific quantile
     quantile(orderStat, probs = 0.05)
     
+    summary(dataAllSimulations[3,])
     
   }
   
