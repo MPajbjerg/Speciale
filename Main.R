@@ -714,3 +714,71 @@ rm(logDifferenceMatrix)
   
 }
 
+
+#Finding out how much of the customer account to take yearly in order for the
+#reserve of the fraction of the account is roughly equal to the price of the
+#guarantee. Our return on investments is \alpha=r(t).
+#Thus we want to find alpha-beta s.t. Reserve= price for guarantee.
+#To do this, we need to define a function, which can be optimized.
+{
+  beta_price_function <- function(beta_price_guess){
+    
+  beta_price <- beta_price_guess
+  
+    #We run into problems, when numerically dividing by zero.
+    #We thus define the CA as practically zero, when this happens
+    dynamicsX_a_price <- function(t,x){
+      ifelse (x>= 10^(-25),
+              (returnInvestment(t)-beta_price)*x-b_a(t,x)-rho(t,x)*muStarfunc(t)
+              ,
+              0)
+    }
+    
+    X_a_price_initial <- 1000000
+    
+    X_a_price <- cbind(time,rungeKutta(0.01,dynamicsX_a_price,X_a_price_initial,10000,0))
+    
+    X_a_price_Func <- approxfun(X_a_price,rule = 2)
+  
+  
+  
+    trueMu_price <- muStarfunc
+    
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu_price,TRUE)),rule = 2)
+  
+  
+  
+  #Now we are ready to calculate the modified transition probabilities.
+  
+    #We define the differential equation
+    dp_aa_X_price <- function(s,p){
+      return(p*((returnInvestment(s)-beta_price)-a(s)-trueMu_price(s)+(1-c_func(s))*muStarfunc(s)) -
+               trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
+    }
+    
+    #We then calculate all the modified prob. using a Runge-Kutta scheme.
+    
+    p_aa_X_price <- rungeKutta(0.01,dp_aa_X_price,X_a_price_initial,10000,0)
+    
+    p_aa_X_price_Func <- approxfun(time,p_aa_X_price,rule = 2)
+    
+  
+  
+  #We can then calculate the reserve - we will do it as a
+  #vector calculation to optimize time use.
+  
+    V_mu_price_integrand <- cumprod(rateAdjustedSurvivalProb(0,100,zeror,shortRateFunc,TRUE))*
+      (trueSurvivalProb(time)*(b(time)+d(time)*trueMu_price(time))+p_aa_X_price*(a(time)+c_func(time)*trueMu_price(time)))
+    
+    #Numerical integration
+    
+    V_mu_price <- sum((V_mu_price_integrand[-1]+V_mu_price_integrand[-(length(V_mu_price_integrand))])*0.01/2)
+  
+    #Here we write the accumulated price, which we want
+    return((V_mu_price - 55000)^2)
+  
+  }
+  
+  beta_price_optim <- optim(par = 0.01, method = "Brent", fn = beta_price_function, lower = 0, upper = 1)
+}
+
