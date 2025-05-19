@@ -39,17 +39,17 @@ returnInvestment <- shortRateFunc
 
 #Plotting the economic scenario
 {
-plot(seq(0,100,0.1),sapply(seq(0,100,0.1),interestRate),type = "l",
-     xlab = "Time in years", ylab = "Rate", col = "black", lwd = 2,
+plot(seq(0,100,0.1),sapply(seq(0,100,0.1),shortRateFunc),type = "l",
+     xlab = "Time in years", ylab = "Short rate", col = "black", lwd = 2,
      ylim = c(0.02,0.055))
 grid()
 
-lines(seq(0,100,0.1),sapply(seq(0,100,0.1),returnInvestment),
-      type = "l", col = "red",lwd = 2)
+#lines(seq(0,100,0.1),sapply(seq(0,100,0.1),returnInvestment),
+#      type = "l", col = "red",lwd = 2)
 
-legend("topright",legend = c("Interest rate", "Return on assets"),
-       col = c("black", "red"),lwd = 2,lty = 1, bty = "n",
-       cex = 0.55)
+#legend("topright",legend = c("Interest rate", "Return on assets"),
+#       col = c("black", "red"),lwd = 2,lty = 1, bty = "n",
+#       cex = 0.55)
 }
 }
 
