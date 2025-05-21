@@ -706,7 +706,7 @@ rm(logDifferenceMatrix)
          xlab = "Reserve", ylab = "Quantile")
     
     #For finding specific quantile
-    quantile(orderStat, probs = 0.05)
+    quantile(orderStat, probs = 0.10)
     
     summary(dataAllSimulations[3,])
     
