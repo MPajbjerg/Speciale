@@ -1,3 +1,4 @@
+#This is exactly the same code but with more volatility in the mortality rates.
 #Packages
 library(readxl)
 #packages for clustering cores and parallel calculations
@@ -10,47 +11,47 @@ source("Functions.R")
 
 #Importing return and interest rate
 {
-returnInterestRateData <- read_excel("Economic scenario speciale.xlsx")
-
-#Linear interpolation for interest rate  
-interestRate <- approxfun(returnInterestRateData$Time,
-                          returnInterestRateData$Interest_rate,rule = 2)
-
-#Fitting a spline to the zero coupon bond price, which allows taking the
-#derivative to find the short rate.
-{
-  zeroCouponPrices <- matrix(,nrow = length(returnInterestRateData$Time),
-                             ncol = 2)
-  zeroCouponPrices[,1] <- returnInterestRateData$Time
+  returnInterestRateData <- read_excel("Economic scenario speciale.xlsx")
   
-  for (i in 1:length(returnInterestRateData$Time)){
-    zeroCouponPrices[i,2] <- 1/(1+returnInterestRateData$Interest_rate[i])^zeroCouponPrices[i,1]
+  #Linear interpolation for interest rate  
+  interestRate <- approxfun(returnInterestRateData$Time,
+                            returnInterestRateData$Interest_rate,rule = 2)
+  
+  #Fitting a spline to the zero coupon bond price, which allows taking the
+  #derivative to find the short rate.
+  {
+    zeroCouponPrices <- matrix(,nrow = length(returnInterestRateData$Time),
+                               ncol = 2)
+    zeroCouponPrices[,1] <- returnInterestRateData$Time
+    
+    for (i in 1:length(returnInterestRateData$Time)){
+      zeroCouponPrices[i,2] <- 1/(1+returnInterestRateData$Interest_rate[i])^zeroCouponPrices[i,1]
+    }
+    
+    shortRate <- splinefun(zeroCouponPrices[,1],-log(zeroCouponPrices[,2]),
+                           method = "natural")
+    
+    shortRateFunc <- function(t){
+      shortRate(t,deriv = 1)
+    }
   }
+  #Linear interpolation for return on investements
+  returnInvestment <- shortRateFunc
   
-  shortRate <- splinefun(zeroCouponPrices[,1],-log(zeroCouponPrices[,2]),
-                         method = "natural")
-  
-  shortRateFunc <- function(t){
-    shortRate(t,deriv = 1)
+  #Plotting the economic scenario
+  {
+    plot(seq(0,100,0.1),sapply(seq(0,100,0.1),shortRateFunc),type = "l",
+         xlab = "Time in years", ylab = "Short rate", col = "black", lwd = 2,
+         ylim = c(0.02,0.055))
+    grid()
+    
+    #lines(seq(0,100,0.1),sapply(seq(0,100,0.1),returnInvestment),
+    #      type = "l", col = "red",lwd = 2)
+    
+    #legend("topright",legend = c("Interest rate", "Return on assets"),
+    #       col = c("black", "red"),lwd = 2,lty = 1, bty = "n",
+    #       cex = 0.55)
   }
-}
-#Linear interpolation for return on investements
-returnInvestment <- shortRateFunc
-
-#Plotting the economic scenario
-{
-plot(seq(0,100,0.1),sapply(seq(0,100,0.1),shortRateFunc),type = "l",
-     xlab = "Time in years", ylab = "Short rate", col = "black", lwd = 2,
-     ylim = c(0.02,0.055))
-grid()
-
-#lines(seq(0,100,0.1),sapply(seq(0,100,0.1),returnInvestment),
-#      type = "l", col = "red",lwd = 2)
-
-#legend("topright",legend = c("Interest rate", "Return on assets"),
-#       col = c("black", "red"),lwd = 2,lty = 1, bty = "n",
-#       cex = 0.55)
-}
 }
 
 #Test mortality for sanity check of passive calculator
@@ -82,11 +83,11 @@ grid()
   #Defining parameters
   deltaTilde <- 0.2 
   gammaTilde <- 0.008
-  sigmaTilde <- 0.02
-
+  sigmaTilde <- 0.05
+  
   delta <- deltaTilde
   gamma <- function(t){
-   deltaTilde*exp(-gammaTilde*t)
+    deltaTilde*exp(-gammaTilde*t)
   }
   
   sigma <- sigmaTilde
@@ -139,7 +140,7 @@ grid()
     cat("Starting simulation at", format(Sys.time(),"%H:%M:%S"),"\n")
     
     simulatedIntensity <- future_replicate(2000,{eulerMaruyama(0.01,drift,diffusion,initial,10000,0)[,2]},
-                                          simplify = "matrix")
+                                           simplify = "matrix")
     
     cat("Simulation ended at", format(Sys.time(),"%H:%M:%S"),"\n")
     
@@ -244,10 +245,10 @@ grid()
   
   #Takes some time, so uses more cores
   {
-  plan(multisession)
-  passive <- future_sapply(seq(0,100,0.01),wrapperPassive)
-  plan(sequential)
-  gc()
+    plan(multisession)
+    passive <- future_sapply(seq(0,100,0.01),wrapperPassive)
+    plan(sequential)
+    gc()
   }
   #Making the passive into a function, since some time steps are missing,
   #due to double trapez integration.
@@ -262,9 +263,9 @@ grid()
 {
   b_ad <- function(t,x){
     ifelse(x>= 10^(-25) & t<=67-startAge ,
-      x,
-      0)
-    }
+           x,
+           0)
+  }
   
   #also added if the payment is larger than the account payout the account.
   b_a <- function(t, x) {
@@ -278,10 +279,10 @@ grid()
   
   rho <- function(t,x){
     ifelse (x>=10^(-25),
-    b_ad(t,x)-x
-    ,
-    0)
-}
+            b_ad(t,x)-x
+            ,
+            0)
+  }
 }
 #Defining the customer account and calculating and plotting.Note that this
 #is the same in all scenario.
@@ -290,9 +291,9 @@ grid()
   #We thus define the CA as practically zero, when this happens
   dynamicsX_a <- function(t,x){
     ifelse (x>= 10^(-25),
-     returnInvestment(t)*x-b_a(t,x)-rho(t,x)*muStarfunc(t)
-    ,
-    0)
+            returnInvestment(t)*x-b_a(t,x)-rho(t,x)*muStarfunc(t)
+            ,
+            0)
   }
   
   X_a_initial <- 1000000
@@ -322,13 +323,13 @@ grid()
   #Defining dynamics of portfolio-wide mean, which only works, when
   #true Mu and true survivalprobability have been defined
   dynamicsX_E <- function(t,x){
-
+    
     p_0_t <- trueSurvivalProb(t)
     X_a_t <- X_a_Func(t)
     
     dX_e <- returnInvestment(t)*p_0_t*X_a_t - rho(t,X_a_t)*p_0_t*
-        (muStarfunc(t) - trueMu(t)) - p_0_t*b_a(t,X_a_t) -
-        b_ad(t,X_a_t)*p_0_t*trueMu(t)
+      (muStarfunc(t) - trueMu(t)) - p_0_t*b_a(t,X_a_t) -
+      b_ad(t,X_a_t)*p_0_t*trueMu(t)
     
     return(dX_e)
   }
@@ -336,13 +337,13 @@ grid()
   #Filling the portfolio wide mean based on low mortality rate.
   {
     #Fill in the true mortality rate in this simulation
-  trueMu <- muLowfunc
-
-  trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
-
-#Calculating the portfolio-wide mean at different times.
-  portMeans[,2] <- rungeKutta(0.01,dynamicsX_E,X_a_initial,10000,0)
-
+    trueMu <- muLowfunc
+    
+    trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
+    
+    #Calculating the portfolio-wide mean at different times.
+    portMeans[,2] <- rungeKutta(0.01,dynamicsX_E,X_a_initial,10000,0)
+    
   }
   #Setting the true mu equal to the contractual mu
   {
@@ -400,7 +401,7 @@ grid()
   valueGuarantee[,1] <- time
   
   colnames(valueGuarantee) <- c("Time","MuLow","MuStar","MuHigh")
-
+  
   #Defining the dynamics of the guarantee, this is the dynamics of the
   #Profit process, when alpha=beta and Tilde(X)=X. Thus, we call the process P.
   #Furthermore we discount with a function, which we define
@@ -415,9 +416,9 @@ grid()
   # We start off by using tho low mu
   {
     trueMu <- muLowfunc
-  
+    
     trueSurvivalProb <- approxfun(time,cumprod(survivalProb(0,100,trueMu,TRUE)),rule = 2)
-  
+    
     valueGuarantee[,2] <- rungeKuttaProfit(0.01,dynamicsP_E,0,10000,0)
     
   }
@@ -498,7 +499,7 @@ grid()
       #We define the differential equation
       dp_aa_X <- function(s,p){
         return(p*(shortRateFunc(s)-a(s)-trueMu(s)+(1-c_func(s))*muStarfunc(s)) -
-          trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
+                 trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
       }
       
       #We then calculate all the modified prob. using a Runge-Kutta scheme.
@@ -602,44 +603,44 @@ rm(logDifferenceMatrix)
   # Run parallel loop
   results <- foreach(i = 1:dim(simulatedIntensity)[2], .combine = 'cbind',
                      .inorder = TRUE) %dopar% {
-    
-    sim_i <-  simulatedIntensity[, i]                  
-    trueMu <- approxfun(time, sim_i, rule = 2)
-    trueSurvivalProb <- approxfun(time, cumprod(survivalProb(0, 100, trueMu, TRUE)), rule = 2)
-    
-    # Expected lifetime
-    expected_lifetime <- kappa(0, trueMu, zeror, TRUE)[1]
-    
-    # Profit guarantee # Defining the function for dynamics again.
-    #This has to be done when calculating parallel.
-    dynamicsP_E <- function(t,x){
-      p_0_t <- trueSurvivalProb(t)
-      X_a_t <- X_a_Func(t)
-      return(discountFunc(t)*rho(t,X_a_t)*p_0_t*
-               (muStarfunc(t) - trueMu(t)))}
-    
-    profit_guarantee <- rungeKuttaProfit(0.01, dynamicsP_E, 0, 10000, 0)
-    profit_guarantee <- profit_guarantee[length(profit_guarantee)]
-    
-    # Reserve
-    #The function has to be defined again, when calculating in parallel.
-    #We define the differential equation
-    dp_aa_X <- function(s,p){
-      return(p*(shortRateFunc(s)-a(s)-trueMu(s)+(1-c_func(s))*muStarfunc(s)) -
-               trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
-    }
-    
-    p_aa_X <- rungeKutta(0.01, dp_aa_X, X_a_initial, 10000, 0)
-    p_aa_X_Func <- approxfun(time, p_aa_X, rule = 2)
-    
-    V_mu_integrand <- cumprod(rateAdjustedSurvivalProb(0, 100, zeror, shortRateFunc, TRUE)) *
-      (trueSurvivalProb(time) * (b(time) + d(time) * trueMu(time)) +
-         p_aa_X * (a(time) + c_func(time) * trueMu(time)))
-    
-    reserve <- sum((V_mu_integrand[-1] + V_mu_integrand[-length(V_mu_integrand)]) * 0.01 / 2)
-    
-    c(expected_lifetime, profit_guarantee, reserve)
-  }
+                       
+                       sim_i <-  simulatedIntensity[, i]                  
+                       trueMu <- approxfun(time, sim_i, rule = 2)
+                       trueSurvivalProb <- approxfun(time, cumprod(survivalProb(0, 100, trueMu, TRUE)), rule = 2)
+                       
+                       # Expected lifetime
+                       expected_lifetime <- kappa(0, trueMu, zeror, TRUE)[1]
+                       
+                       # Profit guarantee # Defining the function for dynamics again.
+                       #This has to be done when calculating parallel.
+                       dynamicsP_E <- function(t,x){
+                         p_0_t <- trueSurvivalProb(t)
+                         X_a_t <- X_a_Func(t)
+                         return(discountFunc(t)*rho(t,X_a_t)*p_0_t*
+                                  (muStarfunc(t) - trueMu(t)))}
+                       
+                       profit_guarantee <- rungeKuttaProfit(0.01, dynamicsP_E, 0, 10000, 0)
+                       profit_guarantee <- profit_guarantee[length(profit_guarantee)]
+                       
+                       # Reserve
+                       #The function has to be defined again, when calculating in parallel.
+                       #We define the differential equation
+                       dp_aa_X <- function(s,p){
+                         return(p*(shortRateFunc(s)-a(s)-trueMu(s)+(1-c_func(s))*muStarfunc(s)) -
+                                  trueSurvivalProb(s)*(b(s)+d(s)*muStarfunc(s)))
+                       }
+                       
+                       p_aa_X <- rungeKutta(0.01, dp_aa_X, X_a_initial, 10000, 0)
+                       p_aa_X_Func <- approxfun(time, p_aa_X, rule = 2)
+                       
+                       V_mu_integrand <- cumprod(rateAdjustedSurvivalProb(0, 100, zeror, shortRateFunc, TRUE)) *
+                         (trueSurvivalProb(time) * (b(time) + d(time) * trueMu(time)) +
+                            p_aa_X * (a(time) + c_func(time) * trueMu(time)))
+                       
+                       reserve <- sum((V_mu_integrand[-1] + V_mu_integrand[-length(V_mu_integrand)]) * 0.01 / 2)
+                       
+                       c(expected_lifetime, profit_guarantee, reserve)
+                     }
   
   # Assign results to matrix
   dataAllSimulations[, 1:dim(simulatedIntensity)[2]] <- results
@@ -663,7 +664,7 @@ rm(logDifferenceMatrix)
     orderStat <- sort(dataAllSimulations[1,]+47)
     
     plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
-                                    1,1/(dim(dataAllSimulations)[2])),
+                       1,1/(dim(dataAllSimulations)[2])),
          xlab = "Expected remaning lifetime", ylab = "Quantile")
     
     #For finding specific quantile
@@ -723,9 +724,9 @@ rm(logDifferenceMatrix)
 {
   phi_price_function <- function(phi_guess){
     
-  phi <- function(t){
-    ifelse(t>20, phi_guess,0)}
-  
+    phi <- function(t){
+      ifelse(t>20, phi_guess,0)}
+    
     #We run into problems, when numerically dividing by zero.
     #We thus define the CA as practically zero, when this happens
     dynamicsX_a_price <- function(t,x){
@@ -740,10 +741,10 @@ rm(logDifferenceMatrix)
     X_a_price <- cbind(time,rungeKutta(0.01,dynamicsX_a_price,X_a_price_initial,10000,0))
     
     X_a_price_Func <- approxfun(X_a_price,rule = 2)
-  
-  
-  
-
+    
+    
+    
+    
     
     # We start off by using tho low mu
     {
@@ -759,11 +760,11 @@ rm(logDifferenceMatrix)
       price <- rungeKuttaProfit(0.01,dynamicsP_price,0,10000,0)
       
     }
-
-  
+    
+    
     #Here we write the accumulated price, which we want
-    return((price[length(price)] - 38848.63)^2)
-  
+    return((price[length(price)] - 133296.9)^2)
+    
   }
   
   phi_price_optim <- optim(par = 0.01, method = "Brent", fn = phi_price_function, lower = 0, upper = 1)
