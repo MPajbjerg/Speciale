@@ -695,7 +695,7 @@ rm(logDifferenceMatrix)
   #Plots regarding the reserve
   
   {
-    hist(dataAllSimulations[3,], freq = FALSE, xlab= "Reserve",
+    hist(dataAllSimulations[3,], freq = FALSE, xlab= "Best estimate",
          col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
@@ -762,7 +762,7 @@ rm(logDifferenceMatrix)
 
   
     #Here we write the accumulated price, which we want
-    return((price[length(price)] - 38848.63)^2)
+    return((price[length(price)] - 52770.85)^2)
   
   }
   

@@ -696,7 +696,7 @@ rm(logDifferenceMatrix)
   #Plots regarding the reserve
   
   {
-    hist(dataAllSimulations[3,], freq = FALSE, xlab= "Reserve",
+    hist(dataAllSimulations[3,], freq = FALSE, xlab= "Best estimate",
          col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
