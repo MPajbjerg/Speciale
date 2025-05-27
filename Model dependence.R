@@ -676,7 +676,7 @@ rm(logDifferenceMatrix)
   
   #Plots regarding the portfolio-wide mean of the profit process.
   {
-    hist(dataAllSimulations[2,], freq = FALSE, xlab= expression(paste(P[E],"*")),
+    hist(dataAllSimulations[2,], freq = FALSE, xlab= expression(P[E]^{"g*"}),
          col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
@@ -684,7 +684,7 @@ rm(logDifferenceMatrix)
     
     plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
                        1,1/(dim(dataAllSimulations)[2])),
-         xlab = expression(paste(P[E],"*")), ylab = "Quantile")
+         xlab = expression(P[E]^{"g*"}), ylab = "Quantile")
     
     #For finding specific quantile
     quantile(orderStat, probs = 0.05)

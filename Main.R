@@ -444,8 +444,12 @@ grid()
   
   #Plotting them together
   {
+    
+    par(mar = c(5, 5, 4, 2)) # Adjust margins
+    
+    
     plot(time + startAge,valueGuarantee[,3],type = "l",
-         xlab = "Age in years", ylab = expression(paste(P[E],"*")), col = "black",lwd=2,
+         xlab = "Age in years", ylab = expression(P[E]^{"g*"}), col = "black",lwd=2,
          ylim = c(-120000,110000))
     grid()
     
@@ -539,7 +543,7 @@ grid()
     }
     
     c_pure <- function(t){
-      1
+      ifelse(t<=67-startAge,1,0)
     }
     
     d_pure <- function(t){
@@ -551,7 +555,7 @@ grid()
     {
       #We define the differential equation
       dp_aa_X_pure <- function(s,p){
-        return(p*(shortRateFunc(s)-a_pure(s)-trueMuPure(s)-(1-c_pure(s))*muStarfunc(s)) -
+        return(p*(shortRateFunc(s)-a_pure(s)-trueMuPure(s)+(1-c_pure(s))*muStarfunc(s)) -
                  trueSurvivalProbPure(s)*(b_pure(s)+d_pure(s)*muStarfunc(s)))
       }
       
@@ -675,7 +679,7 @@ rm(logDifferenceMatrix)
   
   #Plots regarding the portfolio-wide mean of the profit process.
   {
-    hist(dataAllSimulations[2,], freq = FALSE, xlab= expression(paste(P[E],"*")),
+    hist(dataAllSimulations[2,], freq = FALSE, xlab= expression(P[E]^{"g*"}),
          col = "lightblue", main = "")
     
     #order statistics for quantile/distribution
@@ -683,7 +687,7 @@ rm(logDifferenceMatrix)
     
     plot(orderStat,seq(0+1/(dim(dataAllSimulations)[2]),
                        1,1/(dim(dataAllSimulations)[2])),
-         xlab = expression(paste(P[E],"*")), ylab = "Quantile")
+         xlab = expression(P[E]^{"g*"}), ylab = "Quantile")
     
     #For finding specific quantile
     quantile(orderStat, probs = 0.05)
