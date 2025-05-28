@@ -299,7 +299,7 @@ grid()
   
   X_a <- cbind(time,rungeKutta(0.01,dynamicsX_a,X_a_initial,10000,0))
   
-  plot(time + startAge,X_a[,2],type = "l",
+  plot(time[-((length(time)-99):length(time))] + startAge,X_a[-((nrow(X_a)-99):nrow(X_a)),2],type = "l",
        xlab = "Age in years", ylab = expression(X[a]), col = "black",lwd=2)
   grid()
   
